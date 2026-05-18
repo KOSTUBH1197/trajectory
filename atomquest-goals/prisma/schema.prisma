@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum SheetStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+enum UomType {
+  NUMERIC_MIN
+  NUMERIC_MAX
+  PERCENT_MIN
+  PERCENT_MAX
+  TIMELINE
+  ZERO
+}
+
+enum Quarter {
+  Q1
+  Q2
+  Q3
+  Q4
+}
+
+enum AchievementStatus {
+  NOT_STARTED
+  ON_TRACK
+  COMPLETED
+}
+
+enum CycleStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  passwordHash String
+  role         Role        @default(EMPLOYEE)
+  department   String?
+  managerId    String?
+  manager      User?       @relation("Reports", fields: [managerId], references: [id])
+  reports      User[]      @relation("Reports")
+  sheets       GoalSheet[]
+  createdAt    DateTime    @default(now())
+}
+
+model ThrustArea {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  goals       Goal[]
+}
+
+model GoalCycle {
+  id          String      @id @default(cuid())
+  name        String
+  fyStart     DateTime
+  fyEnd       DateTime
+  phase1Open  DateTime
+  phase1Close DateTime
+  q1Open      DateTime
+  q1Close     DateTime
+  q2Open      DateTime
+  q2Close     DateTime
+  q3Open      DateTime
+  q3Close     DateTime
+  q4Open      DateTime
+  q4Close     DateTime
+  status      CycleStatus @default(DRAFT)
+  sheets      GoalSheet[]
+}
+
+model GoalSheet {
+  id             String           @id @default(cuid())
+  employeeId     String
+  employee       User             @relation(fields: [employeeId], references: [id])
+  cycleId        String
+  cycle          GoalCycle        @relation(fields: [cycleId], references: [id])
+  status         SheetStatus      @default(DRAFT)
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  approvedById   String?
+  returnedReason String?
+  goals          Goal[]
+  comments       CheckinComment[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([employeeId, cycleId])
+}
+
+model Goal {
+  id            String     @id @default(cuid())
+  sheetId       String
+  sheet         GoalSheet  @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  thrustAreaId  String
+  thrustArea    ThrustArea @relation(fields: [thrustAreaId], references: [id])
+  title         String
+  description   String?
+  uomType       UomType
+  targetNumeric Float?
+  targetDate    DateTime?
+  weightage     Float
+  sortOrder     Int        @default(0)
+  isShared      Boolean    @default(false)
+  sharedFromId  String?
+  sharedFrom    Goal?      @relation("SharedGoal", fields: [sharedFromId], references: [id])
+  sharedCopies  Goal[]     @relation("SharedGoal")
+  achievements  Achievement[]
+}
+
+model Achievement {
+  id            String            @id @default(cuid())
+  goalId        String
+  goal          Goal              @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  quarter       Quarter
+  actualNumeric Float?
+  actualDate    DateTime?
+  status        AchievementStatus @default(NOT_STARTED)
+  score         Float?
+  updatedAt     DateTime          @updatedAt
+  updatedById   String
+
+  @@unique([goalId, quarter])
+}
+
+model CheckinComment {
+  id        String    @id @default(cuid())
+  sheetId   String
+  sheet     GoalSheet @relation(fields: [sheetId], references: [id])
+  quarter   Quarter
+  managerId String
+  comment   String
+  createdAt DateTime  @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  actorId    String
+  before     Json?
+  after      Json?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
